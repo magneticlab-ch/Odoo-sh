@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+	<template id="discount_field_report_id" inherit_id="sale.report_saleorder_document">  
+	    <xpath expr="//div[@class='clearfix']/div[@name='total']/div/table[@class='table-condensed']/tr" position="after">
+	            <t t-if="doc.apply_discount">
+	                <tr class="border-black">
+                    	<td><strong>Discount</strong></td>
+	                    <td class="text-right">
+	                        <span t-esc="doc.amount_untaxed - doc.disc_amount"
+	                            t-options='{"widget": "monetary", "display_currency": doc.pricelist_id.currency_id}'/>
+	                    </td>
+                    </tr>
+                    <tr class="border-black">
+                    	<td><strong>Amount After Discount</strong></td>
+	                    <td class="text-right">
+	                        <span t-esc="doc.disc_amount"
+	                            t-options='{"widget": "monetary", "display_currency": doc.pricelist_id.currency_id}'/>
+	                    </td>
+                    </tr>
+                </t>
+	    </xpath>	
+	</template>
+</odoo>
+
