@@ -86,58 +86,49 @@ class account_invoice(models.Model):
     
     @api.multi
     def finalize_invoice_move_lines(self, move_lines):
-		# Still buggy in the case of taxes applied
-		""" finalize_invoice_move_lines(move_lines) -> move_lines
+                precision_obj = self.env['decimal.precision']
+                precision = precision_obj.precision_get('Account')
+                total_amount = 0.0
+                for inv in self:
+                        if inv.apply_discount:
+                                if not inv.discount_account_id and inv.sale_discount>0.0:
+                                        raise ValidationError(_('No account is configured as Discount Account, Please configure one before applying Discount!'))
+                                
+                                discount_amount = inv.amount_untaxed - inv.disc_amount
+                                
+                                new_line = {'analytic_account_id': False, 'tax_code_id': False, 'analytic_lines': [],
+                                        'tax_amount': False, 'name': inv.discount_account_id.name, 'ref': '',
+                                        'analytics_id': False, 'currency_id': False, 'debit': False ,
+                                        'product_id': False, 'date_maturity': False, 'credit': False,
+                                        'amount_currency': 0, 'product_uom_id': False, 'quantity': 1, 'partner_id': move_lines[0][2]['partner_id'],
+                                        'account_id': inv.discount_account_id.id,}
 
-		    Hook method to be overridden in additional modules to verify and
-		    possibly alter the move lines to be created by an invoice, for
-		    special cases.
-		    :param move_lines: list of dictionaries with the account.move.lines (as for create())
-		    :return: the (possibly updated) final move_lines to create for this invoice
-		"""
-		precision_obj = self.env['decimal.precision']
-		precision = precision_obj.precision_get('Account')
-		total_amount = 0.0
-		for inv in self:
-			if inv.apply_discount:
-				if not inv.discount_account_id and inv.sale_discount>0.0:
-					raise ValidationError(_('No account is configured as Discount Account, Please configure one before applying Discount!'))
-				
-				discount_amount = inv.amount_untaxed - inv.disc_amount
-				
-				new_line = {'analytic_account_id': False, 'tax_code_id': False, 'analytic_lines': [],
-					'tax_amount': False, 'name': inv.discount_account_id.name, 'ref': '',
-					'analytics_id': False, 'currency_id': False, 'debit': False ,
-					'product_id': False, 'date_maturity': False, 'credit': False,
-					'amount_currency': 0, 'product_uom_id': False, 'quantity': 1, 'partner_id': move_lines[0][2]['partner_id'],
-					'account_id': inv.discount_account_id.id,}
+                                # if there is a discount should be removed from the total amount
+                                if inv.disc_amount > 0.0:
+                                        for line in move_lines:
+                                                if inv.type in ('out_invoice', 'in_refund'):
+                                                        if line[2]['debit'] > 0.0:
+                                                                line[2]['debit'] -= inv.amount_untaxed -  inv.disc_amount
+                                                elif inv.type in ('in_invoice', 'out_refund'):
+                                                        if line[2]['credit'] > 0.0:
+                                                                line[2]['credit'] -= inv.amount_untaxed -  inv.disc_amount
 
-				# if there is a discount should be removed from the total amount
-				if inv.disc_amount > 0.0:
-					for line in move_lines:
-						if inv.type in ('out_invoice', 'in_refund'):
-							if line[2]['debit'] > 0.0:
-								line[2]['debit'] -= inv.amount_untaxed -  inv.disc_amount
-						elif inv.type in ('in_invoice', 'out_refund'):
-							if line[2]['credit'] > 0.0:
-								line[2]['credit'] -= inv.amount_untaxed -  inv.disc_amount
-
-				debit = credit = 0.0
-				for line in move_lines:
-					line[2]['debit'] = round(line[2]['debit'],precision)
-					line[2]['credit'] = round(line[2]['credit'], precision)
-					debit += line[2]['debit']
-					credit += line[2]['credit']
-				
-				precision_diff = round(credit - debit, precision)
-				
-				if precision_diff != 0.0:
-					if precision_diff < 0.0:
-						new_line['credit']=abs(precision_diff)
-					else:
-						new_line['debit']=precision_diff
-					move_lines.append((0, 0, new_line))
-			return move_lines
+                                debit = credit = 0.0
+                                for line in move_lines:
+                                        line[2]['debit'] = round(line[2]['debit'],precision)
+                                        line[2]['credit'] = round(line[2]['credit'], precision)
+                                        debit += line[2]['debit']
+                                        credit += line[2]['credit']
+                                
+                                precision_diff = round(credit - debit, precision)
+                                
+                                if precision_diff != 0.0:
+                                        if precision_diff < 0.0:
+                                                new_line['credit']=abs(precision_diff)
+                                        else:
+                                                new_line['debit']=precision_diff
+                                        move_lines.append((0, 0, new_line))
+                        return move_lines
         
 class AccountInvoiceRefund(models.TransientModel):
     """Refunds invoice"""
